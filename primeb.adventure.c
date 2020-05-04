@@ -1,3 +1,18 @@
+/* Program Name: primeb.adventure.c
+ * Author: Bodhidharma Prime
+ * Date Created: 10/29/2019
+ * Description: Player interface that reads files from directory and utilizes file io
+ * and multithreading
+
+ * This is based off a previous submision for this class F2019
+ * Original scrupt and this submission can be found on github
+ * github.com/dharma-prime/OS1_prog2
+
+ * Date Updated: 5/3/2020
+ * - Added comments
+ * - Properly implement pthreads and mutex locking
+ */
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <pthread.h>
@@ -17,6 +32,8 @@
 #define MY_DIR "."
 #define TIME_FILE "currentTime.txt"
 
+pthread_mutex_t time_lock;
+
 struct room {
 	char name[10];
 	//The type of room
@@ -32,30 +49,66 @@ struct room_link {
 };
 
 //Function Name: whattimeisitrightnowdotcom
-//Description: Displays the time to stdout
+//Description: Writes the current time to a file
 //Input: none
-//Output: String in stdout
+//Output:
 //
-//Status: works great, needs to write to output file
-void whattimeisitrightnowdotcom() {
+void* whattimeisitrightnowdotcom(void * arg){
 
 	char right_now[50];
 	struct tm *tmp;
 	time_t t;
 	FILE * my_file;
 
-	//Find and format the current time	
-	time(&t);
-	tmp=localtime(&t);
-	strftime(right_now,sizeof(right_now),"%I:%M%p, %A, %B %d, %Y",tmp);
+	// Constantly run in background
+	while(1) {
 
-	//Print to stdout
-	printf("\n\t%s\n\n",right_now);
+		// Read the current time and format string
+		time(&t);
+		tmp=localtime(&t);
+		strftime(right_now,sizeof(right_now),"%I:%M%p, %A, %B %d, %Y",tmp);
 
-	//Write time to file (do not append)
-	my_file=fopen(TIME_FILE,"w+");
-	fputs(strcat(right_now,"\n"),my_file);
+		// Block main thread when updating the currentTime file
+		pthread_mutex_lock(&time_lock);
+
+		my_file=fopen(TIME_FILE,"w+");
+
+		// Write string to output file
+		fputs(strcat(right_now,"\n"),my_file);
+		fclose(my_file);
+
+		// Unblock when done with file
+		pthread_mutex_unlock(&time_lock);
+	}
+
+	return NULL;
+
+}
+
+
+//Function Name: find_time
+//Description: Read current time from file
+//Input: none
+//Output: string in stdout
+void find_time() {
+
+	FILE * my_file;
+	char *line;
+	size_t len=0;
+
+	// Block pthread to update currentTime file
+	pthread_mutex_lock(&time_lock);
+
+	// Open file and print contents to std out
+	my_file=fopen(TIME_FILE,"r");
+	getline(&line,&len,my_file);
+	printf(line);
 	fclose(my_file);
+
+	// Unblock when done with file
+	pthread_mutex_unlock(&time_lock);
+
+	return;
 
 }
 
@@ -63,20 +116,21 @@ void whattimeisitrightnowdotcom() {
 //Description: Tests to see whether or not two rooms are connected
 //Input: Struct room of current location, C string of next room
 //Output: Returns a 1 if they are connected, 0 if not
-//
-//Status: working
 int is_connected(struct room here, char *connected) {
 
 	int i,result;
 	char tmp[10];
 
-	//Itterate through the adjacent rooms
 	result=0;
+
+	// Loop through connected rooms
 	for(i=0;i<here.num;i++) {
 
-		//Test if the adjacent room matches the desired room
+		// Grab room name from adjacent room and compare to desired room name
 		sprintf(tmp,"%s\n",here.adjacent[i]);
 		if(strcmp(tmp,connected) == 0){
+
+			// If the room name matches, exit out of the loop and return value of 1
 			result=1; break;
 		}
 	}
@@ -100,10 +154,10 @@ void where_are_you(struct room here){
 	//Display all possible room connections
 	i=0;
 	while (i < (here.num) - 1 ) {
-		printf(" %s,",here.adjacent[i]);	
+		printf(" %s,",here.adjacent[i]);
 		i++;
 	}
-	//Propper punctuation for the last room
+
 	printf(" %s.\n",here.adjacent[i]);
 
 }
@@ -115,20 +169,16 @@ void where_are_you(struct room here){
 //
 //Status: works
 int find_room(struct room *map,char *name) {
-	
+
 	int i,result=-1;
-	char tmp[12];	
+	char tmp[12];
 
-	//Itterate through the map and test to see if the room
-	//matches the desired name
+	// Loop through all available rooms
 	for(i=0;i<NUM_ROOMS;i++) {
-
-		//Add a newline to the end to match getline input
 		sprintf(tmp,"%s\n",map[i].name);
-
-		//If the names match, change the output		
+		// If room name matches the desired room, return the index
 		if(strcmp(tmp,name)==0) {
-			result=i;
+			result=i;break;
 		}
 	}
 
@@ -147,10 +197,10 @@ int find_start(struct room *map) {
 
 	int i,result=-1;
 
-	//Itterate through the map and look for the starting room
+	// Loop through all of the rooms
 	for(i=0;i<NUM_ROOMS;i++) {
 
-		//Set the index to the correct spot
+		// Check for room matching start room id
 		if(map[i].room_ID==-1) {
 			result=i;
 			break;
@@ -162,22 +212,22 @@ int find_start(struct room *map) {
 }
 
 //Function Name: find_end
-//Description: looks for the rom that is the end of the map 
+//Description: looks for the rom that is the end of the map
 //and returns its index
 //Index: struct room array containing map
 //Output: int index of start room
 //
-//Status: working!
+//Status:
 int find_end(struct room *map) {
 
 	int i, result=-1;
-	
-	//Itterate through the map and look to the final room
+
+	// Loop through all of the rooms
 	for(i=0;i<NUM_ROOMS;i++) {
-		
-		//Set the index to the end room
+
+		// Check for room mathcing end room id
 		if(map[i].room_ID==1) {
-			result=i;
+			result=i; break;
 		}
 	}
 
@@ -198,25 +248,26 @@ int get_input(struct room *map, int here){
 	size_t line_size=0;
 	int next_room;
 
-	//Grab user input
 	getline(&line,&line_size,stdin);
 
-	//If the user asks for the time, display the time
+	// Handle user input
+
+	// If user is asking for the time, print the time
 	if(strcmp(line,"time\n")==0) {
-		//Run multithreading stuff here
-		whattimeisitrightnowdotcom();
+		find_time();
 		next_room=here;
-	} 
-	//If the user asks for an adjacent room, change the return index
+	}
+  // Else if moving to another room, check if they are connected
 	else if(is_connected(map[here],line)) {
 		next_room=find_room(map,line);
-	} 
-	//If the input is unrecognized, tell the user to try again
+	}
+	// Else ask for user to try again
 	else {
 		printf("HUH? I DON'T UNDERSTAND THAT ROOM. TRY AGAIN...\n");
 		next_room=here;
 	}
 
+	// Return pointer to players updated location
 	return next_room;
 
 }
@@ -226,29 +277,28 @@ int get_input(struct room *map, int here){
 //Input: linked list, name of new link
 //Output: none
 //
-//Status: works
+//Status: unk
 void new_link(struct room_link **head,char *new) {
 
-	//Pseudo code for linked lists from GeeksforGeeks.org
 	struct room_link *new_link=(struct room_link*)malloc(sizeof(struct room_link));
 	struct room_link *end=*head;
 
-	//Add data to the new link
+	// Create new link
 	strcpy(new_link->name,new);
 	new_link->next=NULL;
 
-	//Base care for if the linked list is empty
+	// If link is the head, add new link to head
 	if (*head == NULL) {
 		*head=new_link;
 		return;
 	}
 
-	//Get the last link that exists
+	// Move down the linked list
 	while(end->next != NULL) {
-			end=end->next;
-	}	
+		end=end->next;
+	}
 
-	//Add the new link to the end of the list
+	// Add the new link to the end of the list
 	end->next=new_link;
 
 }
@@ -261,19 +311,19 @@ void new_link(struct room_link **head,char *new) {
 //Status: unk
 void rm_links(struct room_link **head) {
 
-	//Pseudocode for linked list from GeeksforGeeks.org
 	struct room_link * current= *head;
 	struct room_link * next_link;
 
-	//Itterate through the list and deallocate memory
+	// While there are items in the linked list
 	while (current != NULL) {
+
+		// Print the name, and remove the link
 		printf("%s\n",current->name);
-		next_link=current->next;		
+		next_link=current->next;
 		free(current);
 		current=next_link;
 	}
 
-	//Clear the linked list pointer
 	*head=NULL;
 }
 
@@ -288,7 +338,7 @@ char * find_folder(){
 	struct dirent *dp;
 	struct stat buffer;
 	char * newest;
-	time_t newest_t;	
+	time_t newest_t;
 	DIR *dr = opendir(MY_DIR);
 
 	//Loop through all files in the current directory
@@ -296,7 +346,7 @@ char * find_folder(){
 	while ( (dp = readdir(dr)) != NULL ) {
 
 
-		//Test to see if the file is a directory beginning with the primeb.rooms	
+		//Test to see if the file is a directory beginning with the primeb.rooms
 		if ( stat(dp->d_name,&buffer) == -1 ||	strstr(dp->d_name,MY_PATH) == NULL ) continue;
 
 		//Save the directory name and the new lowest time
@@ -305,7 +355,7 @@ char * find_folder(){
 			newest=dp->d_name;
 		}
 
-	}	
+	}
 
 	//Close the current directory
 	closedir(dr);
@@ -314,7 +364,7 @@ char * find_folder(){
 }
 
 //Function Name: new_rooms
-//Description: reads all of the room files from the given directory and 
+//Description: reads all of the room files from the given directory and
 //fills them into an array of rooms
 //Input: folder location as string, struct to array of empty rooms
 //Output: array of empty rooms is now initalized
@@ -328,7 +378,7 @@ void new_rooms(char * folder_location,struct room *map) {
 	DIR *dr = opendir(folder_location);
 	char file_location[64];
 	FILE * current_room;
-	int i,j;	
+	int i,j;
 
 	size_t line_size=0;
 	char *line=NULL;
@@ -336,36 +386,33 @@ void new_rooms(char * folder_location,struct room *map) {
 	char buf2[10];
 	char buf3[10];
 
-	//Itterate through the given directory and look at each file
 	i=0;
+
+	// Read from every file in the directory
 	while ( (dp = readdir(dr)) != NULL ) {
 
-		//Test to make sure the file is a room file 
+		// Test to only read from the room files
 		if (strstr(dp->d_name,"room")==NULL) {
 			continue;
 		}
 
-		//If room file, create string for file location
-		sprintf(file_location,"./%s/%s",temp,dp->d_name);	
-		current_room=fopen(file_location,"r");	
-		
+		// Open file
+		sprintf(file_location,"./%s/%s",temp,dp->d_name);
+		current_room=fopen(file_location,"r");
+
 		j=0;
-		//Read the file line by line
+		// Ittereate through every line of the file
 		while (getline(&line,&line_size,current_room) != -1) {
 
-			//Seperate the data from the newest line
 			sscanf(line,"%s %s %s",buf1,buf2,buf3);
 
-			//If the line contains the name, write to the map name
-			if(strcmp(buf2,"NAME:")==0) {	
-				strcpy(map[i].name,buf3);					
-			} 
-			//If the line contains the room type, write to room type as int
+			// Save the name
+			if(strcmp(buf2,"NAME:")==0) {
+				strcpy(map[i].name,buf3);
+			}
+			// Else, save the type
 			else if(strcmp(buf2,"TYPE:")==0) {
 
-				// -1 = Start Room
-				//  0 = Mid Room
-				//  1 = End Room
 				if(strcmp(buf3,"START_ROOM")==0) {
 					map[i].room_ID=-1;
 				}	else if(strcmp(buf3,"END_ROOM")==0) {
@@ -374,55 +421,60 @@ void new_rooms(char * folder_location,struct room *map) {
 					map[i].room_ID=0;
 				}
 
-			} 
-			//Else, write the line to an adjacent room
+			}
+			// Else, save the names of adjacent rooms
 			else {
 				strcpy(map[i].adjacent[j],buf3);
-				//Itterate to the next spot in the adjacent array
 				j++;
 			}
 		}
 
-		//Close the file, finish writing to the current room
-		//itterate to the next room number
+		// Move to the next spot in the map
 		map[i].num=j;
 		fclose(current_room);
 		i++;
 	}
-	
+
 }
 
 int main() {
+
+  // Create pthread for timekeeping
+	pthread_t time_thread;
+	pthread_create(&time_thread,NULL,whattimeisitrightnowdotcom,NULL);
 
 	char *my_folder=find_folder();
 	int idx,end;
 	struct room_link *head=NULL;
 	int link_ct=0,next_idx;
 
+	//  Create room map
 	struct room map[NUM_ROOMS];
 	new_rooms(my_folder,map);
 
-	//Set the starting and ending index
+	// Find the start and end of the map
 	idx=find_start(map);
 	end=find_end(map);
 
-	//This is for testing 
+	// Test for find_start(map)
 	if (idx==-1) {
 		printf("Why isn't this working\n");
 		return 1;
-	} else {
+	}
+	else {
 
-		//Test case for the end of the game
+		// Run until player reaches the end of the map
 		while(idx != end) {
 
-			//Print out where the player is
-			//and ask there where they want to go next
+			// Print where user currently is
 			where_are_you(map[idx]);
 			printf("Where to? >");
-			next_idx = get_input(map,idx);	
 
-			//If the player is moving to a new room,
-			//update the linked list and move forward
+			// Get user input and move rooms
+			next_idx = get_input(map,idx);
+
+			// If the player move to a different room, update the linked list
+			// tracking the players movements
 			if (next_idx != idx) {
 				idx=next_idx;
 				new_link(&head,map[idx].name);
@@ -432,7 +484,8 @@ int main() {
 		}
 	}
 
-	//Print the steps taken and deallocate the memory
+	// Print out how the player did
+	new_link(&head,map[end].name);
 	printf("YOU TOOK %d STEPS. YOUR PATH TO VICTORY WAS:\n",link_ct);
 	rm_links(&head);
 

@@ -1,3 +1,17 @@
+/* Program Name: prrimeb.build.c
+ * Author: Bodhidharma Prime
+ * Date Created: 10/29/2019
+ * Description: Creates hardcoded rooms randomly linked together
+ * for adventure.c
+
+ * This is based off a previous submision for this class F2019
+ * Original scrupt and this submission can be found on github
+ * github.com/dharma-prime/OS1_prog2
+
+ * Date Updated: 5/3/2020
+ * - Main changes are to primeb.adventure.c
+ */
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <pthread.h>
@@ -102,8 +116,8 @@ int already_adjacent(struct room *a,struct room *b) {
 	return result;
 
 }
-	
-//Function Name: map_full 
+
+//Function Name: map_full
 //Description: checks to see whether or not rooms need connections
 //Input: Array of Struct rooms
 //Output: returns a 1 is the map is full and 0 if there are some rooms
@@ -122,7 +136,7 @@ int map_full(struct room *rooms) {
 		if(rooms[i].num < MIN_CONNECTIONS) {
 			i=0;
 			break;
-		}	
+		}
 
 		//Else keep searching
 		i++;
@@ -142,7 +156,7 @@ void add_connection(struct room *a,struct room *b) {
 	//Connect the two rooms together
 	a->adjacent[a->num]=b;
 	b->adjacent[b->num]=a;
-	
+
 	//Increment the counters
 	a->num++;
 	b->num++;
@@ -162,7 +176,7 @@ void print_room(struct room *a){
 	int i;
 
 	//Print out the name of the room
-	printf("\nROOM NAME: %s\n",a->name);	
+	printf("\nROOM NAME: %s\n",a->name);
 
 
 	//List all adjacent rooms
@@ -193,14 +207,14 @@ void write_to(struct room *a, char *folder) {
 	//Create a new file in the set folder
 	sprintf(filepath,"%s/%s_room",folder,a->name);
 	room_file=open(filepath, O_WRONLY | O_CREAT | O_TRUNC, 0600);
-	
+
 	//Check to make sure file was written properly
 	if (room_file<0) {
 		printf("Error writing a file to...\n%s\n",filepath);
 		perror("Error with file\n");
 		exit(1);
-	}	
-	
+	}
+
 	//Print the room name to the file
 	sprintf(buf,"ROOM NAME: %s\n",a->name);
 	write(room_file,buf,strlen(buf));
@@ -218,7 +232,7 @@ void write_to(struct room *a, char *folder) {
 		default: sprintf(buf,"ROOM TYPE: MID_ROOM\n"); break;
 	}
 	write(room_file,buf,strlen(buf));
-	
+
 	//Close the file
 	close(room_file);
 
@@ -237,7 +251,7 @@ int main () {
 	char filepath[32]="./primeb.rooms.";
 	sprintf(filepath,"%s%d",filepath,pid);
 	mkdir(filepath,S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH );
-	
+
 	int room_num[MAX_ROOMS]={0};
 	//Hardcoded names for rooms
 	char room_names[MAX_ROOMS][9]= {
@@ -255,7 +269,7 @@ int main () {
 
 
 	//This function call is for testing purposes
-//	testing(directory,filepath);	
+//	testing(directory,filepath);
 
 //Randomly generate rooms
 	for(i=0; i < NUM_ROOMS; i++) {
@@ -294,13 +308,13 @@ int main () {
 				b=&directory[j];
 			} while( same_room(a,b) || !room_for_rooms(b) || already_adjacent(a,b) );
 
-			//Connect room a to b 
+			//Connect room a to b
 			add_connection(a,b);
 		}
 
 	}
 
-//Write all of the room information to files
+  //Write all of the room information to files
 	for(i=0; i < NUM_ROOMS; i++) {
 		write_to(&directory[i],filepath);
 	}
